@@ -5,7 +5,15 @@ https://github.com/bdring/FluidNC
 This usermod will display a preset based off the current FluidNC state as well as a position overlay in the Jog and Run states.
 
 ## Usage
-Compile the source with the buildflag  `-D USERMOD_FLUIDNC`.
+Add `FluidNC` to `custom_usermods` in your PlatformIO environment, e.g. in `platformio_override.ini`:
+
+```ini
+[env:esp32dev_fluidnc]
+extends = env:esp32dev
+custom_usermods = audioreactive FluidNC
+```
+
+Then build with `pio run -e esp32dev_fluidnc`.
 
 ## Setup
 

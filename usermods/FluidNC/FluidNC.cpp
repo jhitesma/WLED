@@ -1,5 +1,3 @@
-#pragma once
-
 #include "wled.h"
 
 /*
@@ -24,6 +22,7 @@ class FluidNcUsermod : public Usermod {
     
     WiFiClient client;
     bool fluidNcConnected = false;
+    unsigned long lastConnectAttempt = 0;
     int ledCount = 0;
 
     String status = "UNKNOWN";
@@ -60,20 +59,27 @@ class FluidNcUsermod : public Usermod {
      * Use it to initialize network interfaces
      */
     void connected() override {
-      while(!fluidNcConnected) {
-        Serial.println("Connecting to FluidNC...");
-        if(client.connect(fluidNcUrl.c_str(), fluidNcTelnetPort)) {
-          client.write("$Report/Interval=200\n");
-          fluidNcConnected = true;
-          Serial.println("Connected to FluidNC!");
-        }
-        else {
-          Serial.println("Not Connected");
-          delay(500);
-        }
-      }
-
       initDone = true;
+      fluidNcConnected = false;
+      connectToFluidNc();
+    }
+
+    /*
+     * Single, non-blocking connection attempt. Retried from loop() so WLED stays responsive
+     * while FluidNC is offline.
+     */
+    void connectToFluidNc() {
+      lastConnectAttempt = millis();
+      if (fluidNcUrl.length() == 0) return;
+      Serial.println("Connecting to FluidNC...");
+      if(client.connect(fluidNcUrl.c_str(), fluidNcTelnetPort, 1000)) {
+        client.write("$Report/Interval=200\n");
+        fluidNcConnected = true;
+        Serial.println("Connected to FluidNC!");
+      }
+      else {
+        Serial.println("Not Connected");
+      }
     }
 
 
@@ -84,6 +90,15 @@ class FluidNcUsermod : public Usermod {
       // if usermod is disabled or called during strip updating just exit
       // NOTE: on very long strips strip.isUpdating() may always return true so update accordingly
       if (!enabled /*|| strip.isUpdating() */) return;
+
+      if (fluidNcConnected && !client.connected()) {
+        Serial.println("Lost connection to FluidNC");
+        fluidNcConnected = false;
+      }
+      if (!fluidNcConnected) {
+        if (initDone && WLED_CONNECTED && millis() - lastConnectAttempt > 5000) connectToFluidNc();
+        return;
+      }
 
       // do your magic here
       if (millis() - lastTime > 200) {
@@ -317,3 +332,6 @@ class FluidNcUsermod : public Usermod {
 // add more strings here to reduce flash memory usage
 const char FluidNcUsermod::_name[]    PROGMEM = "FluidNC";
 const char FluidNcUsermod::_enabled[] PROGMEM = "enabled";
+
+static FluidNcUsermod fluidnc;
+REGISTER_USERMOD(fluidnc);
